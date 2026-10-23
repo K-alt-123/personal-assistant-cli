@@ -6,7 +6,8 @@ Notes have stable IDs and optional tags. Data is saved after each change.
 
 ## Install and run
 
-Requires Python 3.11 or newer. The app has no third-party runtime dependencies.
+Requires Python 3.11 or newer. Installation includes Colorama for terminal
+colours, including Windows console support.
 Extract the project ZIP, then open a terminal in the extracted folder.
 
 Linux/macOS:
@@ -29,6 +30,11 @@ py -m venv .venv
 With the environment activated, `personal-assistant` works from any folder.
 Without activation, use the full path to that environment's executable.
 `python -m personal_assistant` is another way to launch the installed app.
+
+Interactive terminals show an ASCII banner, a cyan prompt and grouped help.
+Successful changes are green, input/save errors red, and deletion confirmations
+yellow. Redirected output remains plain text. Use `personal-assistant --no-color`
+or set a nonempty `NO_COLOR` environment variable to disable colours.
 
 ## Example
 
@@ -169,6 +175,7 @@ setup; they are not evidence of a completed Windows test run.
 - `assistant.py`: parsing, commands, prompts, and save orchestration.
 - `storage.py`: JSON validation, loading, and file replacement.
 - `errors.py`: expected input, missing-item, duplicate, and storage errors.
+- `terminal.py`: banner, colours, prompt, and grouped help presentation.
 
 `Phone`, `Email`, and `Birthday` inherit from `Field`. A `Record` contains
 field objects and a list of phones (composition). Collections use `UserDict`.

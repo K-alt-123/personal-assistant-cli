@@ -6,9 +6,12 @@ import sys
 from functools import wraps
 from typing import NamedTuple
 
+from colorama import just_fix_windows_console
+
 from personal_assistant.address_book import Record, format_birthday
 from personal_assistant.errors import InputError, NotFoundError, StorageError
 from personal_assistant.storage import load_data, save_data
+from personal_assistant.terminal import Terminal, format_help
 
 
 # Syntax, minimum arguments, maximum arguments, and whether data changes.
@@ -49,6 +52,7 @@ class Result(NamedTuple):
     message: str
     changed: bool = False
     exit_requested: bool = False
+    failed: bool = False
 
 
 def input_error(func):
@@ -58,7 +62,7 @@ def input_error(func):
         try:
             return func(*args, **kwargs)
         except InputError as error:
-            return Result(str(error))
+            return Result(str(error), failed=True)
     return inner
 
 
@@ -205,7 +209,7 @@ def handle_command(command, args, book, notebook):
     if command == "hello":
         return Result("How can I help you?")
     if command == "help":
-        syntax = "\n".join(item[0] for item in COMMANDS.values())
+        syntax = format_help(COMMANDS)
         return Result(
             syntax + '\nUse double quotes for text containing spaces.\n'
             "Phones: 10 digits, e.g. 0501234567. Email: name@example.org.\n"
@@ -219,32 +223,32 @@ def handle_command(command, args, book, notebook):
     return Result(message, changed=changed)
 
 
-def confirm_deletion(command, args, book, notebook):
+def confirm_deletion(command, args, book, notebook, terminal):
     if command == "delete":
         print(contact(book, args[0]))
     else:
         print(notebook.find(positive_integer(args[0], "Note ID")))
     try:
-        answer = input("Delete this item? [y/N]: ")
+        answer = input(terminal.paint("Delete this item? [y/N]: ", "warning"))
     except (EOFError, KeyboardInterrupt):
         answer = "no"
         print()
     if answer.strip().casefold() in {"yes", "y"}:
         return True
-    print("Cancelled.")
+    terminal.write("Cancelled.", "warning")
     return False
 
 
-def run_loop(book, notebook, filename):
-    print("Welcome to Personal Assistant. Type help for commands.")
+def run_loop(book, notebook, filename, terminal):
+    terminal.welcome()
     while True:
         try:
-            command, args = parse_input(input("> "))
+            command, args = parse_input(input(terminal.prompt()))
         except (EOFError, KeyboardInterrupt):
-            print("\nGood bye!")
+            terminal.write("\nGood bye!", "muted")
             return 0
         except InputError as error:
-            print(error)
+            terminal.write(error, "error")
             continue
         changes_data = COMMANDS.get(command, (None, 0, 0, False))[3]
         candidate = deepcopy((book, notebook)) if changes_data else (
@@ -253,17 +257,25 @@ def run_loop(book, notebook, filename):
         result = handle_command(command, args, *candidate)
         if result.changed:
             if command in {"delete", "note-delete"}:
-                if not confirm_deletion(command, args, book, notebook):
+                if not confirm_deletion(
+                    command, args, book, notebook, terminal,
+                ):
                     continue
             try:
                 save_data(*candidate, filename)
             except StorageError as error:
-                print(f"Change not saved: {error}")
+                terminal.write(f"Change not saved: {error}", "error")
                 continue
             # Replacement succeeded. Publish once, before reporting success.
             book, notebook = candidate
         if result.message:
-            print(result.message)
+            if command == "help" and not result.failed:
+                terminal.help(result.message)
+            else:
+                kind = "error" if result.failed else (
+                    "success" if result.changed else "info"
+                )
+                terminal.write(result.message, kind)
         if result.exit_requested:
             return 0
 
@@ -271,18 +283,22 @@ def run_loop(book, notebook, filename):
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Contacts and notes.")
     parser.add_argument("--data-file", help="Use a different save file.")
+    parser.add_argument("--no-color", action="store_true",
+                        help="Disable terminal colours.")
     options = parser.parse_args(argv)
     # Piped input/output can inherit a non-Unicode encoding on Windows.
     for stream in (sys.stdin, sys.stdout, sys.stderr):
         if hasattr(stream, "reconfigure"):
             stream.reconfigure(encoding="utf-8")
+    just_fix_windows_console()
+    terminal = Terminal(no_color=options.no_color)
     try:
         book, notebook = load_data(options.data_file)
     except StorageError as error:
         print(error, file=sys.stderr)
         return 1
     try:
-        return run_loop(book, notebook, options.data_file)
+        return run_loop(book, notebook, options.data_file, terminal)
     except Exception as error:
         print(f"Unexpected error ({type(error).__name__}): {error}",
               file=sys.stderr)
