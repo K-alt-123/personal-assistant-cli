@@ -11,7 +11,7 @@ from colorama import just_fix_windows_console
 from personal_assistant.address_book import Record, format_birthday
 from personal_assistant.errors import InputError, NotFoundError, StorageError
 from personal_assistant.storage import load_data, save_data
-from personal_assistant.terminal import Terminal, format_help
+from personal_assistant.terminal import Terminal, format_help, safe_text
 
 
 # Syntax, minimum arguments, maximum arguments, and whether data changes.
@@ -225,9 +225,10 @@ def handle_command(command, args, book, notebook):
 
 def confirm_deletion(command, args, book, notebook, terminal):
     if command == "delete":
-        print(contact(book, args[0]))
+        item = contact(book, args[0])
     else:
-        print(notebook.find(positive_integer(args[0], "Note ID")))
+        item = notebook.find(positive_integer(args[0], "Note ID"))
+    terminal.feedback(command, str(item), "CONFIRM")
     try:
         answer = input(terminal.paint("Delete this item? [y/N]: ", "warning"))
     except (EOFError, KeyboardInterrupt):
@@ -235,7 +236,7 @@ def confirm_deletion(command, args, book, notebook, terminal):
         print()
     if answer.strip().casefold() in {"yes", "y"}:
         return True
-    terminal.write("Cancelled.", "warning")
+    terminal.feedback(command, "Cancelled.", "CANCELLED")
     return False
 
 
@@ -243,12 +244,14 @@ def run_loop(book, notebook, filename, terminal):
     terminal.welcome()
     while True:
         try:
-            command, args = parse_input(input(terminal.prompt()))
+            command, args = parse_input(input(terminal.prompt(
+                contacts=len(book), notes=len(notebook),
+            )))
         except (EOFError, KeyboardInterrupt):
-            terminal.write("\nGood bye!", "muted")
+            terminal.feedback("exit", "\nGood bye!", "BYE")
             return 0
         except InputError as error:
-            terminal.write(error, "error")
+            terminal.feedback("", str(error), "ERROR")
             continue
         changes_data = COMMANDS.get(command, (None, 0, 0, False))[3]
         candidate = deepcopy((book, notebook)) if changes_data else (
@@ -264,18 +267,21 @@ def run_loop(book, notebook, filename, terminal):
             try:
                 save_data(*candidate, filename)
             except StorageError as error:
-                terminal.write(f"Change not saved: {error}", "error")
+                terminal.feedback(command, f"Change not saved: {error}",
+                                  "NOT SAVED")
                 continue
             # Replacement succeeded. Publish once, before reporting success.
             book, notebook = candidate
         if result.message:
-            if command == "help" and not result.failed:
-                terminal.help(result.message)
+            if result.failed:
+                status = "ERROR"
+            elif result.changed:
+                status = "SAVED"
+            elif result.exit_requested:
+                status = "BYE"
             else:
-                kind = "error" if result.failed else (
-                    "success" if result.changed else "info"
-                )
-                terminal.write(result.message, kind)
+                status = "VIEW"
+            terminal.feedback(command, result.message, status)
         if result.exit_requested:
             return 0
 
@@ -285,21 +291,23 @@ def main(argv=None):
     parser.add_argument("--data-file", help="Use a different save file.")
     parser.add_argument("--no-color", action="store_true",
                         help="Disable terminal colours.")
+    parser.add_argument("--plain", action="store_true",
+                        help="Disable colours, artwork and status prompts.")
     options = parser.parse_args(argv)
     # Piped input/output can inherit a non-Unicode encoding on Windows.
     for stream in (sys.stdin, sys.stdout, sys.stderr):
         if hasattr(stream, "reconfigure"):
             stream.reconfigure(encoding="utf-8")
     just_fix_windows_console()
-    terminal = Terminal(no_color=options.no_color)
+    terminal = Terminal(no_color=options.no_color, plain=options.plain)
     try:
         book, notebook = load_data(options.data_file)
     except StorageError as error:
-        print(error, file=sys.stderr)
+        print(safe_text(error), file=sys.stderr)
         return 1
     try:
         return run_loop(book, notebook, options.data_file, terminal)
     except Exception as error:
-        print(f"Unexpected error ({type(error).__name__}): {error}",
+        print(safe_text(f"Unexpected error ({type(error).__name__}): {error}"),
               file=sys.stderr)
         return 1

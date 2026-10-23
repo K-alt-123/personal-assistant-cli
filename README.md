@@ -31,10 +31,23 @@ With the environment activated, `personal-assistant` works from any folder.
 Without activation, use the full path to that environment's executable.
 `python -m personal_assistant` is another way to launch the installed app.
 
-Interactive terminals show an ASCII banner, a cyan prompt and grouped help.
-Successful changes are green, input/save errors red, and deletion confirmations
-yellow. Redirected output remains plain text. Use `personal-assistant --no-color`
-or set a nonempty `NO_COLOR` environment variable to disable colours.
+Interactive terminals show a two-tone PA wordmark and illustrated command
+responses: a contact card, notebook, birthday cake, search lens, or deletion
+bin. The little face and status change after each command. The prompt shows
+the current contact and note counts; `SAVED` appears only after saving succeeds.
+Errors show `ERROR` or `NOT SAVED`, and cancelled deletions show `CANCELLED`.
+
+Artwork adapts to the current terminal width: a large logo in wide windows,
+a compact logo in medium windows, and text in narrow windows. New output
+uses the latest width; previous output is left in the terminal history.
+There are no animation delays or screen-clearing effects. User text, including
+Ukrainian and emoji, is printed intact and wraps normally in the terminal.
+
+Successful changes are green, errors red, and deletion confirmations yellow.
+Every status also has a text label. Use `personal-assistant --no-color` or a
+nonempty `NO_COLOR` environment variable to keep the artwork without colours.
+Use `personal-assistant --plain` to remove all decoration and status prompts.
+Redirected output and `TERM=dumb` automatically use plain output.
 
 ## Example
 
@@ -140,6 +153,8 @@ Keep a backup before editing a save manually. Restore a valid backup or use
 `--data-file` with a new filename to start a separate collection. A disk or
 permission error during a change reports `Change not saved`; resolve the
 cause before entering the change again.
+Control characters in system error messages are displayed as escaped text,
+so a problematic filename cannot clear the terminal or change its title.
 
 Use **one running instance per data file**. Concurrent editing, encrypted
 storage, and recovery from hardware failure are outside this project.
@@ -163,6 +178,8 @@ injected write/flush/replace failures, deletion confirmation, Unicode, and
 separate-process restarts. The installation check requires a normal install
 (`pip install .`, not `pip install -e .`): it checks import locations and runs
 the suite and console command outside the source folder.
+Presentation tests also cover status/count changes, failed-save reactions,
+20–160-column layouts, resizing, plain mode, and control characters in errors.
 
 The release was tested on Linux with Python 3.12. Windows, macOS, and Python
 3.11 have not yet been executed. The Windows commands above are provided for
@@ -175,7 +192,7 @@ setup; they are not evidence of a completed Windows test run.
 - `assistant.py`: parsing, commands, prompts, and save orchestration.
 - `storage.py`: JSON validation, loading, and file replacement.
 - `errors.py`: expected input, missing-item, duplicate, and storage errors.
-- `terminal.py`: banner, colours, prompt, and grouped help presentation.
+- `terminal.py`: ASCII artwork, colours, outcome feedback, counts, and help.
 
 `Phone`, `Email`, and `Birthday` inherit from `Field`. A `Record` contains
 field objects and a list of phones (composition). Collections use `UserDict`.
