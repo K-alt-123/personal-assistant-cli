@@ -223,7 +223,7 @@ class TerminalPresentationTests(unittest.TestCase):
         self.assertNotIn("\a", visible)
 
     def test_external_errors_cannot_emit_terminal_controls(self):
-        unsafe = "bad\x1b[2J\x1b]2;title\a\r\x9b2J\u202e\ud800"
+        unsafe = "bad\nFAKE SAVED\x1b[2J\x1b]2;title\a\r\x9b2J\u202e\ud800"
         for tty in (True, False):
             for operation, exception in (
                 ("load_data", StorageError(unsafe)),
@@ -243,6 +243,20 @@ class TerminalPresentationTests(unittest.TestCase):
                                     "\u202e", "\ud800"):
                         self.assertNotIn(control, plain)
                     self.assertIn(r"\x1b[2J", plain)
+                    self.assertNotIn("bad\nFAKE SAVED", plain)
+                    self.assertIn(r"bad\nFAKE SAVED", plain)
+
+    def test_newline_in_a_real_path_stays_on_one_diagnostic_line(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "denied\nFAKE SAVED"
+            path.mkdir()
+            errors = io.StringIO()
+            with redirect_stderr(errors), redirect_stdout(io.StringIO()):
+                code = assistant.main(["--data-file", str(path)])
+            self.assertEqual(code, 1)
+            self.assertTrue(path.is_dir())
+            self.assertEqual(len(errors.getvalue().splitlines()), 1)
+            self.assertIn(r"denied\nFAKE SAVED", errors.getvalue())
 
     def test_unknown_command_is_not_echoed_into_a_status_label(self):
         unsafe = "\x1b[2J" + "a" * 1000

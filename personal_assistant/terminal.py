@@ -69,12 +69,12 @@ def format_help(commands):
     return "\n\n".join(sections)
 
 
-def safe_text(text):
-    """Show controls in external messages literally, before adding colour."""
+def safe_text(text, *, multiline=False):
+    """Escape external controls; allow line breaks only when requested."""
     return "".join(
         repr(character)[1:-1]
-        if character != "\n" and unicodedata.category(character)
-        in {"Cc", "Cf", "Cs"} else character
+        if unicodedata.category(character) in {"Cc", "Cf", "Cs"}
+        and not (multiline and character == "\n") else character
         for character in str(text)
     )
 
@@ -115,7 +115,7 @@ class Terminal:
         return colors[kind] + text + Style.RESET_ALL
 
     def write(self, text, kind="info"):
-        print(self.paint(safe_text(text), kind))
+        print(self.paint(safe_text(text, multiline=kind != "error"), kind))
 
     def welcome(self):
         if not self.interactive:

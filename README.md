@@ -155,6 +155,8 @@ permission error during a change reports `Change not saved`; resolve the
 cause before entering the change again.
 Control characters in system error messages are displayed as escaped text,
 so a problematic filename cannot clear the terminal or change its title.
+Line breaks in these errors are escaped too, keeping each diagnostic on one
+output line. Normal contact lists, notes, and help retain their line breaks.
 
 Use **one running instance per data file**. Concurrent editing, encrypted
 storage, and recovery from hardware failure are outside this project.
