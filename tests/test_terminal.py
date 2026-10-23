@@ -246,6 +246,7 @@ class TerminalPresentationTests(unittest.TestCase):
                     self.assertNotIn("bad\nFAKE SAVED", plain)
                     self.assertIn(r"bad\nFAKE SAVED", plain)
 
+    @unittest.skipIf(os.name == "nt", "Windows rejects newline filenames")
     def test_newline_in_a_real_path_stays_on_one_diagnostic_line(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "denied\nFAKE SAVED"
